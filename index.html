@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CardioXAI v4.0 — Explainable Deep Learning for Wearable ECG Arrhythmia Detection</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Clinical Header -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 36 36" width="28" height="28" fill="none">
+            <rect x="2" y="2" width="32" height="32" rx="8" stroke="currentColor" stroke-width="2" opacity="0.35"/>
+            <path d="M5 19h5l2.5-6 3.5 13 3.5-17 3 12 2.5-4H31" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">CardioXAI <span class="badge badge-accent">v4.0 Clinical &amp; Edge XAI</span></div>
+          <div class="brand-subtitle">Explainable Deep Learning for Wearable Single-Lead ECG Arrhythmia Detection</div>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Primary Views">
+        <button class="nav-tab active" data-tab="workstation">
+          <span class="dot-live" aria-hidden="true"></span> Live XAI Workstation
+        </button>
+        <button class="nav-tab" data-tab="comparator">XAI Comparator &amp; Layers</button>
+        <button class="nav-tab" data-tab="batch">Beat Explorer, HRV &amp; Holter</button>
+        <button class="nav-tab" data-tab="architecture">Architecture &amp; Edge</button>
+      </nav>
+
+      <div class="topbar-actions">
+        <div class="case-loader-group">
+          <select id="select-sample-case" class="mini-select" aria-label="Clinical Sample Case">
+            <option value="CASE_PVC_BIGEMINY">Case 01 · PVC Bigeminy</option>
+            <option value="CASE_PAF_ONSET">Case 02 · Paroxysmal AFib</option>
+            <option value="CASE_JOG_NSR">Case 03 · Jogging Motion NSR</option>
+            <option value="CASE_VT_RUN">Case 04 · Sustained VTach</option>
+          </select>
+          <button id="btn-load-sample" class="btn btn-ghost" title="Load selected clinical case via the CSV parser">
+            ⚡ Load Case
+          </button>
+        </div>
+        <button id="btn-upload-trigger" class="btn btn-ghost" title="Upload custom ECG CSV/JSON">
+          ↑ Import ECG
+        </button>
+        <input id="file-upload" type="file" accept=".csv,.json,.txt" hidden />
+        <button id="btn-audio-toggle" class="btn btn-ghost" title="Toggle Web Audio R-Peak QRS Beep">
+          🔇 QRS Tone
+        </button>
+        <button id="btn-export-report" class="btn btn-primary">
+          Clinical Report
+        </button>
+        <button id="btn-theme" class="btn btn-icon" title="Toggle Dark / Clinical Light Theme" aria-label="Toggle Theme">
+          ◐
+        </button>
+      </div>
+    </header>
+
+    <!-- Critical Alert Banner -->
+    <div id="alert-banner" class="alert-banner hidden" role="alert">
+      <div class="alert-banner-content">
+        <span class="alert-pulse"></span>
+        <strong id="alert-title">Clinical Alert</strong>
+        <span id="alert-message"></span>
+      </div>
+      <button id="btn-dismiss-alert" class="btn btn-xs">Acknowledge</button>
+    </div>
+
+    <!-- TAB 1: LIVE XAI WORKSTATION -->
+    <main id="tab-workstation" class="tab-panel active">
+      <div class="workstation-grid">
+        <!-- Left Sidebar: Wearable Controls & Signal Lab -->
+        <aside class="sidebar">
+          <section class="card">
+            <div class="card-header">
+              <h2>Wearable Sensor Profile</h2>
+              <span id="sensor-badge" class="pill">250 Hz · Watch Lead I</span>
+            </div>
+            <div class="sensor-bar sensor-bar-4" role="group" aria-label="Wearable Sensor Profile">
+              <button class="sensor-pill active" data-sensor="WATCH_I">Watch I</button>
+              <button class="sensor-pill" data-sensor="PATCH_II">Patch II</button>
+              <button class="sensor-pill" data-sensor="HOLTER_V5">Holter V5</button>
+              <button class="sensor-pill" data-sensor="RING_HYBRID">Ring</button>
+            </div>
+            <p id="sensor-desc" class="helper-text mt-xs">Wrist-worn dry electrodes; higher motion &amp; EMG susceptibility.</p>
+
+            <div class="sub-tabs mt-sm">
+              <span class="sub-label">Activity / Motion Context</span>
+            </div>
+            <div class="sensor-bar sensor-bar-4 mt-xs" role="group" aria-label="Wearable Activity Profile">
+              <button class="activity-pill active" data-activity="RESTING">Rest</button>
+              <button class="activity-pill" data-activity="WALKING">Walk</button>
+              <button class="activity-pill" data-activity="JOGGING">Jog</button>
+              <button class="activity-pill" data-activity="SLEEP">Sleep</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Wearable Rhythm Preset</h2>
+              <span class="pill" id="source-mode-pill">Synthetic Live</span>
+            </div>
+            <div class="preset-grid" id="preset-buttons">
+              <button class="preset-btn active" data-preset="NSR">
+                <span class="preset-code">NSR</span>
+                <span class="preset-name">Normal Sinus</span>
+              </button>
+              <button class="preset-btn" data-preset="AFIB">
+                <span class="preset-code">AFib</span>
+                <span class="preset-name">Atrial Fibrillation</span>
+              </button>
+              <button class="preset-btn" data-preset="PVC">
+                <span class="preset-code">PVC</span>
+                <span class="preset-name">Ventricular Ectopy</span>
+              </button>
+              <button class="preset-btn" data-preset="PAC">
+                <span class="preset-code">PAC</span>
+                <span class="preset-name">Atrial Ectopy</span>
+              </button>
+              <button class="preset-btn" data-preset="VTACH">
+                <span class="preset-code">VTach</span>
+                <span class="preset-name">Vent. Tachycardia</span>
+              </button>
+              <button class="preset-btn" data-preset="LBBB">
+                <span class="preset-code">LBBB</span>
+                <span class="preset-name">Bundle Branch Blk</span>
+              </button>
+              <button class="preset-btn" data-preset="BIGEMINY">
+                <span class="preset-code">Bigeminy</span>
+                <span class="preset-name">1:1 PVC Coupling</span>
+              </button>
+              <button class="preset-btn" data-preset="PAROXYSMAL_AF">
+                <span class="preset-code">PAF Onset</span>
+                <span class="preset-name">Sinus → AFib @4.5s</span>
+              </button>
+            </div>
+
+            <div class="control-row mt-sm">
+              <label for="slider-bpm">Target Heart Rate <span id="val-bpm" class="mono">72 BPM</span></label>
+              <input id="slider-bpm" type="range" min="45" max="195" value="72" />
+            </div>
+
+            <div class="btn-row mt-sm">
+              <button id="btn-play-pause" class="btn btn-secondary flex-1">⏸ Pause Strip</button>
+              <button id="btn-download-sample" class="btn btn-ghost" title="Download current trace as CSV">↓ CSV</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Wearable Noise &amp; Denoising</h2>
+              <span id="snr-badge" class="pill pill-good">SNR: 24.5 dB</span>
+            </div>
+            <div class="control-row">
+              <label for="slider-motion">Motion Artifact <span id="val-motion" class="mono">10%</span></label>
+              <input id="slider-motion" type="range" min="0" max="100" value="10" />
+            </div>
+            <div class="control-row">
+              <label for="slider-baseline">Baseline Wander <span id="val-baseline" class="mono">15%</span></label>
+              <input id="slider-baseline" type="range" min="0" max="100" value="15" />
+            </div>
+            <div class="control-row">
+              <label for="slider-emg">Muscle EMG Noise <span id="val-emg" class="mono">8%</span></label>
+              <input id="slider-emg" type="range" min="0" max="100" value="8" />
+            </div>
+            <div class="toggle-list">
+              <label class="toggle-item">
+                <input id="chk-powerline" type="checkbox" />
+                <span>60 Hz Mains Interference</span>
+              </label>
+              <label class="toggle-item highlight-toggle">
+                <input id="chk-denoise" type="checkbox" checked />
+                <span>Adaptive Wavelet-Bandpass Filter</span>
+              </label>
+              <label class="toggle-item">
+                <input id="chk-ghost-raw" type="checkbox" checked />
+                <span>Overlay Raw Unfiltered Ghost</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Counterfactual "What-If" Lab</h2>
+              <span class="pill pill-purple">XAI Perturb</span>
+            </div>
+            <p class="helper-text">Test causal explanations by morphing physiological features in real time:</p>
+            <div class="toggle-list">
+              <label class="toggle-item">
+                <input id="cf-restore-p" type="checkbox" />
+                <span>Restore Sinus P-Waves</span>
+              </label>
+              <label class="toggle-item">
+                <input id="cf-regularize-rr" type="checkbox" />
+                <span>Regularize R-R Intervals</span>
+              </label>
+              <label class="toggle-item">
+                <input id="cf-narrow-qrs" type="checkbox" />
+                <span>Normalize Ectopic QRS Width</span>
+              </label>
+            </div>
+            <button id="btn-reset-cf" class="btn btn-ghost btn-xs mt-xs full-width">Reset Counterfactuals</button>
+          </section>
+        </aside>
+
+        <!-- Center & Right Main Area -->
+        <div class="main-column">
+          <!-- KPI Strip -->
+          <section class="kpi-strip" aria-label="Real-Time Physiological Telemetry">
+            <div class="kpi-card">
+              <div class="kpi-label">Detected Rhythm</div>
+              <div class="kpi-value" id="kpi-class">Normal Sinus (NSR)</div>
+              <div class="kpi-sub" id="kpi-conf">Confidence: 96.4% · Entropy: 0.14</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Instant Heart Rate</div>
+              <div class="kpi-value mono" id="kpi-hr">72 <small>BPM</small></div>
+              <div class="kpi-sub" id="kpi-rr">Mean R-R: 833 ms</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">HRV (RMSSD / SDNN)</div>
+              <div class="kpi-value mono" id="kpi-hrv">34 / 41 <small>ms</small></div>
+              <div class="kpi-sub" id="kpi-irregularity">Rhythm Regularity: High</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Morphology (QRS / PR)</div>
+              <div class="kpi-value mono" id="kpi-morph">88 / 156 <small>ms</small></div>
+              <div class="kpi-sub" id="kpi-sqi">Signal Quality Index: 94%</div>
+            </div>
+          </section>
+
+          <!-- Main Live ECG + XAI Attribution Strip -->
+          <section class="card telemetry-card">
+            <div class="card-header wrap-header">
+              <div>
+                <h2>Real-Time Wearable ECG &amp; XAI Attribution Overlay</h2>
+                <span class="helper-text" id="strip-helper-text">25 mm/s clinical grid · Hover for saliency · Click beat markers to focus · Toggle Calipers to measure ms/mV</span>
+              </div>
+              <div class="strip-controls-right">
+                <div class="mini-select-group">
+                  <label for="select-gain">Gain</label>
+                  <select id="select-gain" class="mini-select">
+                    <option value="0.75">5 mm/mV</option>
+                    <option value="1.0" selected>10 mm/mV</option>
+                    <option value="1.4">15 mm/mV</option>
+                  </select>
+                </div>
+                <div class="mini-select-group">
+                  <label for="select-speed">Sweep</label>
+                  <select id="select-speed" class="mini-select">
+                    <option value="0.5">0.5×</option>
+                    <option value="1" selected>1×</option>
+                    <option value="2">2×</option>
+                  </select>
+                </div>
+                <div class="mini-select-group" title="Minimum XAI attribution score to highlight">
+                  <label for="slider-sal-thresh">Thresh</label>
+                  <input id="slider-sal-thresh" type="range" min="0" max="65" value="14" style="width:68px;" />
+                  <span id="val-sal-thresh" class="mono">0.14</span>
+                </div>
+                <button id="btn-calipers" class="btn btn-xs" title="Click or drag two points on ECG strip to measure Δt and ΔV">
+                  📏 Calipers
+                </button>
+                <button id="btn-clear-calipers" class="btn btn-ghost btn-xs hidden">Clear</button>
+                <div class="xai-mode-bar" role="group" aria-label="XAI Method Selector">
+                  <button class="xai-pill active" data-xai="gradcam">Grad-CAM++</button>
+                  <button class="xai-pill" data-xai="ig">Integrated Gradients</button>
+                  <button class="xai-pill" data-xai="smoothgrad">SmoothGrad</button>
+                  <button class="xai-pill" data-xai="shap">Phase SHAP</button>
+                  <button class="xai-pill" data-xai="attention">Self-Attention Arcs</button>
+                  <button class="xai-pill" data-xai="raw">Clean Trace</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="canvas-wrapper">
+              <canvas id="ecg-strip-canvas" height="270"></canvas>
+              <div id="strip-tooltip" class="canvas-tooltip hidden"></div>
+            </div>
+
+            <div class="legend-bar">
+              <div class="legend-scale">
+                <span>Low Attribution</span>
+                <div class="colorbar"></div>
+                <span>High Diagnostic Saliency</span>
+              </div>
+              <div class="legend-markers">
+                <span><i class="swatch swatch-r"></i> Detected R-Peak</span>
+                <span><i class="swatch swatch-raw"></i> Raw Unfiltered (ghost)</span>
+                <span><i class="swatch swatch-attn"></i> R-R Attention Link</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Bottom Analytics Trio -->
+          <div class="analytics-grid">
+            <!-- Single-Beat XAI Microscope -->
+            <section class="card">
+              <div class="card-header">
+                <h2>Single-Beat XAI Microscope</h2>
+                <span class="pill" id="beat-selector-label">Beat #3 Focus</span>
+              </div>
+              <div class="canvas-wrapper">
+                <canvas id="beat-zoom-canvas" height="220"></canvas>
+                <div id="zoom-tooltip" class="canvas-tooltip hidden"></div>
+              </div>
+              <div class="beat-nav-row">
+                <button id="btn-prev-beat" class="btn btn-xs">◀ Prev</button>
+                <label class="inline-check">
+                  <input id="chk-template-overlay" type="checkbox" checked />
+                  <span>Sinus Template</span>
+                </label>
+                <label class="inline-check">
+                  <input id="chk-fiducials" type="checkbox" checked />
+                  <span>PQRST</span>
+                </label>
+                <button id="btn-next-beat" class="btn btn-xs">Next ▶</button>
+              </div>
+            </section>
+
+            <!-- SHAP Phase Attribution & Model Probabilities -->
+            <section class="card">
+              <div class="card-header">
+                <h2>Phase SHAP &amp; Class Posteriors</h2>
+                <span class="pill">1D-ResNet-BiGRU</span>
+              </div>
+              <div class="sub-tabs">
+                <span class="sub-label">Wave-Segment Importance (SHAP)</span>
+              </div>
+              <canvas id="shap-canvas" height="145"></canvas>
+              <div class="sub-tabs mt-xs">
+                <span class="sub-label">Softmax Class Posteriors</span>
+              </div>
+              <div id="prob-bars" class="prob-bars"></div>
+            </section>
+
+            <!-- Clinical Rationale & Actionable Triage -->
+            <section class="card rationale-card">
+              <div class="card-header">
+                <h2>Clinical Rationale &amp; Triage</h2>
+                <span class="pill pill-good" id="triage-badge">ROUTINE TELEMETRY</span>
+              </div>
+              <div id="clinical-rationale" class="rationale-body"></div>
+              <ul id="triage-steps" class="triage-list"></ul>
+
+              <div class="uncertainty-box">
+                <div class="sub-label">MC-Dropout Uncertainty</div>
+                <div class="uncertainty-row">
+                  <span>Epistemic (Model)</span>
+                  <div class="prob-track"><div id="bar-epistemic" class="prob-fill" style="width:12%;background:#a78bfa;"></div></div>
+                  <span id="val-epistemic" class="mono">0.08</span>
+                </div>
+                <div class="uncertainty-row">
+                  <span>Aleatoric (Noise)</span>
+                  <div class="prob-track"><div id="bar-aleatoric" class="prob-fill" style="width:14%;background:#fbbf24;"></div></div>
+                  <span id="val-aleatoric" class="mono">0.09</span>
+                </div>
+              </div>
+
+              <div class="xai-metrics-mini">
+                <div>
+                  <span class="mini-label">Deletion AUC</span>
+                  <strong id="metric-deletion" class="mono">0.18</strong>
+                </div>
+                <div>
+                  <span class="mini-label">Insertion AUC</span>
+                  <strong id="metric-insertion" class="mono">0.91</strong>
+                </div>
+                <div>
+                  <span class="mini-label">Faithfulness</span>
+                  <strong id="metric-faithfulness" class="mono">0.93</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Upgraded Live FFT Power Spectrum Card -->
+          <section class="card">
+            <div class="card-header wrap-header">
+              <div>
+                <h2>Real-Time Spectral Analysis (0–75 Hz FFT Power Density)</h2>
+                <span class="helper-text">Hover spectrum for frequency/dB · Compares Raw Unfiltered vs Denoised across Baseline, QRS (5–20 Hz), EMG (&gt;25 Hz), and 60 Hz Mains</span>
+              </div>
+              <div class="strip-controls-right">
+                <span class="pill" id="band-base-pill">Drift: 12%</span>
+                <span class="pill pill-good" id="band-qrs-pill">QRS Band: 74%</span>
+                <span class="pill" id="band-emg-pill">EMG: 14%</span>
+                <span class="pill" id="spectrum-60hz-pill">60 Hz Notch: Standby</span>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="spectrum-canvas" height="150"></canvas>
+              <div id="spectrum-tooltip" class="canvas-tooltip hidden"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 2: XAI COMPARATOR & LAYER EXPLORER -->
+    <section id="tab-comparator" class="tab-panel">
+      <div class="arch-grid">
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>Synchronized Multi-Method XAI Attribution Comparator</h2>
+              <span class="helper-text">Side-by-side temporal audit comparing Grad-CAM++, Integrated Gradients, and SmoothGrad on the active 10s ECG</span>
+            </div>
+            <span class="pill pill-good" id="consensus-badge">Inter-Method Consensus: 91%</span>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="xai-comparator-canvas" height="330"></canvas>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Layer-by-Layer Neural Activation Heatmap</h2>
+              <span class="helper-text">1D-ResNet morphological kernels → BiGRU temporal rhythm norm → 4-Head Self-Attention</span>
+            </div>
+            <span class="pill pill-purple">125 Bins (80 ms)</span>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="layer-activations-canvas" height="220"></canvas>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Counterfactual Sensitivity Tornado (What-If ΔP)</h2>
+              <span class="helper-text">Measures exact class probability shift if each physiological intervention were applied</span>
+            </div>
+            <button id="btn-apply-sinus-reset" class="btn btn-xs btn-secondary">Apply All Counterfactuals</button>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="cf-tornado-canvas" height="220"></canvas>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- TAB 3: BEAT EXPLORER, HRV & 60s HOLTER -->
+    <section id="tab-batch" class="tab-panel">
+      <div class="batch-grid-upgraded">
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>60-Second Multi-Window Wearable Holter Session</h2>
+              <span class="helper-text">Simulated continuous 1-minute ambulatory monitoring · Click any 10-second epoch to load and explain that episode</span>
+            </div>
+            <span class="pill" id="holter-active-pill">Epoch 1 (0–10 s)</span>
+          </div>
+          <div id="holter-timeline" class="holter-timeline"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Poincaré HRV Plot (RR<sub>n</sub> vs RR<sub>n+1</sub>)</h2>
+            <span class="pill" id="poincare-pattern">Tight Elliptical Cluster</span>
+          </div>
+          <canvas id="poincare-canvas" height="280"></canvas>
+          <p class="helper-text mt-xs">
+            Green ellipse shows SD1/SD2 clinical dispersion; off-axis red points indicate premature ectopy &amp; compensatory pauses.
+          </p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Beat-to-Beat Self-Attention Matrix (N × N)</h2>
+            <span class="pill pill-purple" id="matrix-hover-info">Hover/Click cell to inspect beat</span>
+          </div>
+          <canvas id="attention-matrix-canvas" height="280"></canvas>
+          <p class="helper-text mt-xs">
+            Shows how each heartbeat query attends to contextual beats across the 10-second wearable strip.
+          </p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>R-R Interval Tachogram (Beat-to-Beat Dynamics)</h2>
+            <span class="pill" id="tachogram-pill">Mean R-R: 833 ms</span>
+          </div>
+          <canvas id="tachogram-canvas" height="195"></canvas>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Frequency-Domain Autonomic HRV Power</h2>
+            <span class="pill" id="hrv-freq-pill">LF/HF: 0.78</span>
+          </div>
+          <canvas id="hrv-freq-canvas" height="195"></canvas>
+        </section>
+
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>Segmented Heartbeat Log &amp; Per-Beat XAI</h2>
+              <span class="helper-text">Filter or sort detected heartbeats and jump directly to Single-Beat Microscope</span>
+            </div>
+            <div class="strip-controls-right">
+              <div class="mini-select-group">
+                <label for="select-beat-filter">Filter</label>
+                <select id="select-beat-filter" class="mini-select">
+                  <option value="ALL">All Beats</option>
+                  <option value="NORMAL">Normal Only</option>
+                  <option value="ECTOPIC">Ectopic / Abnormal</option>
+                </select>
+              </div>
+              <div class="mini-select-group">
+                <label for="select-beat-sort">Sort</label>
+                <select id="select-beat-sort" class="mini-select">
+                  <option value="TIME">Time Order</option>
+                  <option value="SALIENCY">Peak Saliency ↓</option>
+                  <option value="QRS">QRS Width ↓</option>
+                  <option value="RR">R-R Interval ↓</option>
+                </select>
+              </div>
+              <span class="pill" id="beat-count-pill">0 Beats Detected</span>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="beat-table">
+              <thead>
+                <tr>
+                  <th>Beat</th>
+                  <th>R-Peak (s)</th>
+                  <th>R-R (ms)</th>
+                  <th>QRS (ms)</th>
+                  <th>Peak Saliency</th>
+                  <th>Dominant Region</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="beat-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- TAB 4: MODEL ARCHITECTURE, BENCHMARKS & EDGE PROFILER -->
+    <section id="tab-architecture" class="tab-panel">
+      <div class="arch-grid">
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>Interactive Hybrid Deep Learning Pipeline (Click Any Stage to Inspect)</h2>
+              <span class="helper-text">ResNet-1D + BiGRU + 4-Head Self-Attention · 1.42M Params · Edge-Quantizable</span>
+            </div>
+            <span class="pill">Click Stage Block Below</span>
+          </div>
+          <div class="pipeline-diagram" id="pipeline-diagram">
+            <button class="pipe-node active" data-stage="stage-1" type="button">
+              <div class="pipe-step">01 · Signal Conditioning</div>
+              <h4>Wearable Denoiser</h4>
+              <p>0.5–40 Hz detrend + 5-tap FIR + SQI gating</p>
+              <span class="pipe-tensor">[B, 1, 2500]</span>
+            </button>
+            <div class="pipe-arrow">→</div>
+            <button class="pipe-node" data-stage="stage-2" type="button">
+              <div class="pipe-step">02 · Local Morphology</div>
+              <h4>Multi-Scale 1D-ResNet</h4>
+              <p>3 residual blocks (k=15, 9, 5) extracting QRS &amp; P-waves</p>
+              <span class="pipe-tensor">[B, 128, 312]</span>
+            </button>
+            <div class="pipe-arrow">→</div>
+            <button class="pipe-node" data-stage="stage-3" type="button">
+              <div class="pipe-step">03 · Rhythm Context</div>
+              <h4>Bi-Directional GRU</h4>
+              <p>2-layer BiGRU capturing R-R irregularity &amp; pauses</p>
+              <span class="pipe-tensor">[B, 256, 312]</span>
+            </button>
+            <div class="pipe-arrow">→</div>
+            <button class="pipe-node" data-stage="stage-4" type="button">
+              <div class="pipe-step">04 · Global Explainability</div>
+              <h4>4-Head Self-Attention</h4>
+              <p>Cross-beat attention + Grad-CAM++ &amp; IG hooks</p>
+              <span class="pipe-tensor">[B, 4, 312, 312]</span>
+            </button>
+            <div class="pipe-arrow">→</div>
+            <button class="pipe-node pipe-node-accent" data-stage="stage-5" type="button">
+              <div class="pipe-step">05 · Calibrated Output</div>
+              <h4>Temperature-Scaled Head</h4>
+              <p>6-class posteriors, MC-Dropout &amp; clinical rationale</p>
+              <span class="pipe-tensor">[B, 6]</span>
+            </button>
+          </div>
+          <div id="stage-inspector" class="stage-inspector mt-sm"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>MIT-BIH + PhysioNet Confusion Matrix</h2>
+            <div class="btn-row">
+              <button id="btn-cm-mode" class="btn btn-xs">Show Counts</button>
+              <span class="pill">Macro F1: 96.8%</span>
+            </div>
+          </div>
+          <canvas id="confusion-canvas" height="310"></canvas>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>6-Class ROC Curves &amp; Sensitivity</h2>
+            <div class="btn-row">
+              <label class="inline-check">
+                <input id="chk-roc-macro" type="checkbox" checked />
+                <span>Macro Curve</span>
+              </label>
+              <span class="pill">Mean AUROC: 0.991</span>
+            </div>
+          </div>
+          <canvas id="roc-canvas" height="310"></canvas>
+        </section>
+
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>Live XAI Faithfulness Validation (Deletion &amp; Insertion Curves on Active Trace)</h2>
+              <span class="helper-text">Progressively masks (Deletion) or reveals (Insertion) top-k% highest-attribution 100 ms segments on the active ECG</span>
+            </div>
+            <span class="pill pill-good" id="faithfulness-curve-pill">Insertion AUC: 0.91 · Deletion AUC: 0.18</span>
+          </div>
+          <canvas id="faithfulness-canvas" height="230"></canvas>
+        </section>
+
+        <section class="card full-span">
+          <div class="card-header wrap-header">
+            <div>
+              <h2>Wearable Edge Hardware Profiler &amp; Ablation Benchmark</h2>
+              <span class="helper-text">Select target wearable/mobile accelerator to simulate on-device deployment budget</span>
+            </div>
+            <select id="select-hardware" class="mini-select">
+              <option value="CORTEX_M55_INT8">ARM Cortex-M55 (INT8)</option>
+              <option value="APPLE_ANE">Apple S9 Neural Engine</option>
+              <option value="WEAR_DSP">Snapdragon Wear DSP</option>
+              <option value="WEB_WASM">Browser WebAssembly (FP32)</option>
+            </select>
+          </div>
+          <div id="hardware-profile-strip" class="hardware-strip mb-sm"></div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Model Variant</th>
+                  <th>Accuracy</th>
+                  <th>Macro F1</th>
+                  <th>AUROC</th>
+                  <th>Insertion AUC (XAI)</th>
+                  <th>Latency (Edge)</th>
+                  <th>Memory</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Baseline 1D-CNN</td>
+                  <td>93.4%</td><td>91.1%</td><td>0.964</td><td>0.79</td><td>6.2 ms</td><td>1.8 MB</td>
+                </tr>
+                <tr>
+                  <td>CNN + BiLSTM</td>
+                  <td>95.8%</td><td>94.3%</td><td>0.981</td><td>0.84</td><td>16.8 ms</td><td>4.1 MB</td>
+                </tr>
+                <tr class="row-highlight">
+                  <td><strong>CardioXAI (ResNet-1D + BiGRU + MHA)</strong></td>
+                  <td><strong>97.6%</strong></td><td><strong>96.8%</strong></td><td><strong>0.991</strong></td><td><strong>0.91</strong></td><td><strong>11.4 ms</strong></td><td><strong>2.7 MB</strong></td>
+                </tr>
+                <tr>
+                  <td>CardioXAI (INT8 Quantized Wearable)</td>
+                  <td>97.2%</td><td>96.3%</td><td>0.989</td><td>0.90</td><td>4.9 ms</td><td>0.85 MB</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <!-- Clinical Report Modal -->
+  <div id="report-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div>
+          <h2 id="report-title">CardioXAI Clinical Diagnostic &amp; Explainability Report</h2>
+          <p class="helper-text" id="report-timestamp"></p>
+        </div>
+        <div class="btn-row">
+          <button id="btn-export-json" class="btn btn-ghost btn-xs">Export JSON</button>
+          <button id="btn-print-report" class="btn btn-primary btn-xs">Print / Save PDF</button>
+          <button id="btn-close-modal" class="btn btn-ghost btn-xs">✕</button>
+        </div>
+      </div>
+      <div id="report-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script defer src="js/ecgEngine.js"></script>
+  <script defer src="js/xaiModel.js"></script>
+  <script defer src="js/charts.js"></script>
+  <script defer src="js/app.js"></script>
+</body>
+</html>
